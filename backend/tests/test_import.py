@@ -95,3 +95,41 @@ def test_skip_already_processed_event():
         assert report.already_processed_count == 1
         assert report.accepted_count == 1
         assert report.accepted_records[0]["event_id"] == "brand-new-evt-100"
+
+
+def test_shopping_notifications_dataset_valid():
+    """Verifies that shopping_notifications.json has exactly 40 valid Indian e-commerce notifications."""
+    import json
+    data_path = Path(__file__).resolve().parent.parent.parent / "data" / "shopping_notifications.json"
+    assert data_path.exists(), "shopping_notifications.json must exist in data directory"
+
+    with open(data_path, "r", encoding="utf-8") as f:
+        events = json.load(f)
+
+    assert len(events) == 40
+
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+        db_path = Path(tmpdir) / "test_shopping.db"
+        init_db(db_path)
+        repo = Repository(str(db_path))
+        service = ImportService(repository=repo)
+
+        report = service.validate_and_filter_events(events)
+        assert report.total_records == 40
+        assert report.accepted_count == 40
+        assert report.rejected_count == 0
+
+    # Verify app breakdown
+    pkg_counts: dict[str, int] = {}
+    for ev in events:
+        pkg = ev["package_name"]
+        pkg_counts[pkg] = pkg_counts.get(pkg, 0) + 1
+
+    assert pkg_counts["com.amazon.mShop.android.shopping"] == 10
+    assert pkg_counts["com.flipkart.android"] == 8
+    assert pkg_counts["com.myntra.android"] == 5
+    assert (pkg_counts.get("in.swiggy.android", 0) + pkg_counts.get("com.application.zomato", 0)) == 5
+    assert (pkg_counts.get("net.one97.paytm", 0) + pkg_counts.get("com.phonepe.app", 0)) == 5
+    assert (pkg_counts.get("com.ril.ajio", 0) + pkg_counts.get("com.fsn.nykaa", 0) + pkg_counts.get("com.meesho.supply", 0)) == 7
+
+

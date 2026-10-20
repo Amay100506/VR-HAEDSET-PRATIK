@@ -94,3 +94,12 @@ def test_settings_endpoints(client):
     patch_res = client.patch("/settings", json={"settings": {"test_key": "test_val"}})
     assert patch_res.status_code == 200
     assert patch_res.json()["status"] == "settings_updated"
+
+
+def test_retention_cleanup_endpoint(client):
+    res = client.post("/retention/cleanup")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "cleanup_completed"
+    assert "deleted_count" in data
+

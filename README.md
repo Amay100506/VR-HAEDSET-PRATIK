@@ -3,7 +3,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests Passing](https://img.shields.io/badge/tests-32%20passed-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/tests-60%2B%20passed-brightgreen.svg)]()
 [![Platform: Android + Localhost](https://img.shields.io/badge/platform-Android%20%7C%20Localhost-orange.svg)]()
 
 ---
@@ -36,7 +36,11 @@ NotifyIQ is a **decision-support tool**: it never automatically replies, dismiss
 
 - 📱 **Real-Time Mobile Companion (Installable PWA)**: Installable directly onto Android & iOS devices without an app store. Features real-time WebSocket live-streaming, haptic vibration, push notifications, and a mobile-optimized card interface.
 - 🔒 **100% Local & Privacy-First**: Offline execution using SQLite, scikit-learn, and rule-based extractors. Zero third-party cloud AI APIs; zero external subscriptions.
-- 🤖 **Native Android Companion**: Kotlin-based `NotificationListenerService` that respects explicit user permissions, supports app allowlists, and features an instant pause toggle.
+- 🤖 **Native Android Companion**: Kotlin-based `NotificationListenerService` that respects explicit user permissions, supports app allowlists, instant pause toggle, and records dismissal events.
+- ⚙️ **Notification Service & Lifecycle Orchestration**: End-to-end management service with Smart Inbox multi-criteria filtering, attention summaries (overdue deadlines, unread high-priority, open actions), read/unread status tracking, and per-app analytics.
+- 🌙 **Quiet Hours & Notification Deferral**: Timezone-aware quiet hours scheduling (e.g., 22:00 to 07:00) that captures notifications without dropping context, marking them as deferred to suppress alerts during downtime.
+- 🛡️ **Hard Package Exclusions**: Pre-capture (Android) and pre-ingestion (backend) package exclusion lists allowing complete blacklisting of sensitive applications (banking, private messengers) from intelligence pipelines and database storage.
+- 🛍️ **Shopping Intelligence (BuyHatke-Style)**: Offline deal discovery, multi-currency price and discount extraction, deal quality scoring ($0-100$), coupon code detection, and historical price drop tracking without remote cloud tracking.
 - 🤖 **Hybrid AI Architecture**: Combines TF-IDF + Logistic Regression classification with deterministic rule fallback and grammar-based information extraction.
 - ⚖️ **Explainable Priority Formula**: Auditable scoring based on Urgency, Action Requirement, Deadline Proximity, User Importance, and Recency Decay.
 - 🔁 **Two-Level Duplicate Grouping**: Deterministic exact SHA-256 fingerprinting plus conservative near-duplicate similarity without ever discarding source notifications.
@@ -49,12 +53,14 @@ NotifyIQ is a **decision-support tool**: it never automatically replies, dismiss
 
 ```mermaid
 flowchart LR
-    A[Android Companion<br/>Kotlin / NotificationListener] -->|JSON Export| B[Ingestion & Validation<br/>Pydantic]
+    A[Android Companion<br/>Kotlin / NotificationListener] -->|JSON Export / Sync| B[Ingestion & Validation<br/>Pydantic]
     B --> C[Privacy Redaction<br/>Masking Sensitive Patterns]
     C --> D[AI Intelligence Engine<br/>TF-IDF + LogReg + Rules]
-    D --> E[(SQLite Database<br/>Local Persistence)]
-    E --> F[Streamlit Dashboard<br/>Smart Inbox & Analytics]
-    E --> G[FastAPI Local Service<br/>Optional Local Sync]
+    D --> E[Shopping Intelligence<br/>Deals + Coupons + Price Tracking]
+    E --> F[(SQLite Database<br/>Local Persistence)]
+    F --> G[Streamlit Dashboard<br/>Smart Inbox & Analytics]
+    F --> H[FastAPI Local Service<br/>REST + WebSocket Gateway]
+    H --> I[Mobile PWA Companion<br/>Real-Time Live Stream]
 ```
 
 ### Technology Stack
@@ -62,9 +68,9 @@ flowchart LR
 - **Python Backend**: Python 3.11 / 3.14 compatible.
 - **Machine Learning**: `scikit-learn` (TF-IDF vectorizer + Logistic Regression).
 - **Storage**: SQLite 3 with foreign keys, indexes, and schema migration tracking.
-- **API**: FastAPI, Uvicorn, Pydantic v2.
+- **API & Streaming**: FastAPI, Uvicorn, WebSockets, Pydantic v2.
 - **Dashboard**: Streamlit, Plotly, Pandas, NumPy.
-- **Testing**: `pytest`, `TestClient`.
+- **Testing**: `pytest`, `TestClient` (60+ automated tests).
 
 ---
 
@@ -88,7 +94,36 @@ Where:
 
 ---
 
-## 6. Project Structure
+## 6. Shopping Intelligence (BuyHatke-Style)
+
+NotifyIQ includes an offline shopping intelligence suite designed to surface high-value deals and coupons buried within promotional spam without sending private browsing data or shopping activities to third-party ad networks.
+
+### 1. Price & Currency Extraction (`price_extractor.py`)
+- Extracts current prices, original / MRP prices, and percentage discounts across global currencies (₹ INR, $ USD, € EUR, £ GBP).
+- Understands complex natural language expressions: `"Flat ₹5,000 off on ₹24,999"`, `"Now ₹899 down from ₹2,499"`, `"Save 40% today"`.
+
+### 2. Deal Quality Scoring (`deal_scorer.py`)
+- Calculates an objective **Deal Score ($0-100$)** combining:
+  - Relative discount depth (percentage savings)
+  - Absolute monetary savings
+  - Urgency indicators (flash sales, lightning deals, expiring timers)
+  - Merchant trustworthiness and popularity
+- Assigns human-readable quality badges: `Exceptional Deal` (80+), `Great Deal` (65+), `Good Deal` (50+), `Fair Deal` (35+), or `Regular Price`.
+
+### 3. Coupon Code Discovery (`coupon_detector.py`)
+- Automatically harvests promo codes, discount vouchers, and referral bonuses (e.g., `SAVE20`, `DIWALI500`, `FESTIVE1000`).
+- Employs strict negative filtering to discard common false positives like order numbers, tracking IDs, transaction references, and generic uppercase words.
+
+### 4. Historical Price Drop Tracking (`shopping_service.py`)
+- Maintains a local SQLite timeline of observed product prices (`shopping_price_history`).
+- Compares new offers against historical price points to detect genuine price drops and all-time low alerts.
+
+### 5. Radical Privacy Advantage
+Commercial shopping extensions (such as Honey or BuyHatke) frequently monitor browsing sessions, capture shopping carts, and redirect affiliate links. NotifyIQ's shopping module runs **100% offline and locally**, processing only incoming notification text and storing all history in local SQLite.
+
+---
+
+## 7. Project Structure
 
 ```
 NotifyIQ/
@@ -102,8 +137,9 @@ NotifyIQ/
 │   ├── main.py                        # FastAPI entry point & lifespan
 │   ├── api/
 │   │   ├── __init__.py
-│   │   ├── routes.py                  # API routes (import, actions, feedback, etc.)
-│   │   └── schemas.py                 # Pydantic request & response models
+│   │   ├── routes.py                  # API routes (import, actions, feedback, settings, etc.)
+│   │   ├── schemas.py                 # Pydantic request & response models
+│   │   └── shopping_routes.py         # Shopping Intelligence REST endpoints
 │   ├── ai/
 │   │   ├── __init__.py
 │   │   ├── preprocess.py              # Unicode, whitespace, and pattern redaction
@@ -112,7 +148,12 @@ NotifyIQ/
 │   │   ├── deadline_extractor.py      # Timezone-aware deadline parsing
 │   │   ├── priority_engine.py         # Formula-based scoring & explainability
 │   │   ├── duplicate_detector.py      # Level 1 fingerprint & Level 2 similarity
-│   │   └── pipeline.py                # End-to-end processing pipeline
+│   │   ├── pipeline.py                # End-to-end processing pipeline
+│   │   └── shopping/                  # Shopping Intelligence Engine (BuyHatke-style)
+│   │       ├── __init__.py
+│   │       ├── price_extractor.py     # Regex and heuristic price/discount extractor
+│   │       ├── deal_scorer.py         # 0-100 deal quality scoring engine
+│   │       └── coupon_detector.py     # Promo code & voucher discovery
 │   ├── database/
 │   │   ├── __init__.py
 │   │   ├── connection.py              # SQLite connection context & migrations
@@ -121,12 +162,20 @@ NotifyIQ/
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── import_service.py          # JSON import/export validation
-│   │   └── evaluation_service.py      # Comprehensive model evaluation
+│   │   ├── evaluation_service.py      # Comprehensive model evaluation
+│   │   ├── notification_service.py    # Notification orchestration, quiet hours & exclusions
+│   │   └── shopping_service.py        # Deals aggregation & price history tracking
+│   ├── static/                        # Mobile Companion Web App (PWA)
+│   │   ├── icons/                     # PWA home screen icons (192x192, 512x512)
+│   │   └── mobile/
+│   │       ├── index.html             # Responsive mobile notification stream UI
+│   │       ├── manifest.json          # Web app manifest for A2HS installation
+│   │       └── service-worker.js      # Offline caching and notification handler
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── configuration.py           # Configuration management
 │   │   └── logging_config.py          # Privacy-preserving logging
-│   └── tests/                         # Full automated test suite (32 tests)
+│   └── tests/                         # Full automated test suite (60+ tests)
 │       ├── test_database.py
 │       ├── test_import.py
 │       ├── test_preprocessing.py
@@ -135,7 +184,9 @@ NotifyIQ/
 │       ├── test_priority.py
 │       ├── test_duplicates.py
 │       ├── test_pipeline.py
-│       └── test_api.py
+│       ├── test_notification_service.py # Smart inbox, quiet hours, retention & exclusions
+│       ├── test_shopping.py           # Price extraction, deal scoring, coupons & history
+│       └── test_api.py                # Integration tests for REST endpoints
 │
 ├── dashboard/
 │   ├── app.py                         # Streamlit multi-page dashboard
@@ -159,6 +210,7 @@ NotifyIQ/
 │
 ├── data/
 │   ├── sample_notifications.json      # 50 Android-compatible notification events
+│   ├── shopping_notifications.json    # 25 real-world e-commerce & deal notifications
 │   ├── training_notifications.csv     # 326 labeled synthetic training records
 │   └── evaluation_notifications.csv   # 126 held-out evaluation records
 │
@@ -176,15 +228,15 @@ NotifyIQ/
 │
 └── docs/
     ├── architecture.md                # System architecture & Mermaid diagrams
-    ├── privacy.md                     # Privacy model, redaction & retention
-    ├── api.md                         # REST API documentation
+    ├── privacy.md                     # Privacy model, redaction, quiet hours & retention
+    ├── api.md                         # REST API & Shopping documentation
     ├── testing.md                     # Test suite documentation & coverage
     └── demo_guide.md                  # 3-5 minute presentation walkthrough
 ```
 
 ---
 
-## 7. Quickstart Guide (Step-by-Step)
+## 8. Quickstart Guide (Step-by-Step)
 
 ### Step 1: Install Dependencies
 ```bash
@@ -214,6 +266,7 @@ python scripts/evaluate_model.py
 ### Step 6: Import Sample Notifications into Database
 ```bash
 python scripts/import_notifications.py --file data/sample_notifications.json
+python scripts/import_notifications.py --file data/shopping_notifications.json
 ```
 
 ### Step 7: Launch Interactive Streamlit Dashboard
@@ -222,20 +275,22 @@ streamlit run dashboard/app.py
 ```
 *The dashboard will open automatically in your browser at `http://localhost:8501`.*
 
-### Step 8: (Optional) Launch FastAPI Backend Service
+### Step 8: (Optional) Launch FastAPI Backend Service & Mobile Companion Gateway
 ```bash
-uvicorn backend.main:app --host 127.0.0.1 --port 8000
+uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 *API docs available at `http://127.0.0.1:8000/docs`.*
+*Scan the QR code displayed in the dashboard or navigate to `http://<your-lan-ip>:8000/mobile` to install the mobile PWA companion.*
 
 ### Step 9: Run Automated Tests
 ```bash
 python -m pytest backend/tests/ -v
 ```
+*Runs the full suite of 60+ unit, integration, and API tests.*
 
 ---
 
-## 8. Android Companion App Build Instructions
+## 9. Android Companion App Build Instructions
 
 The Android application is located in `android/`.
 
@@ -255,7 +310,7 @@ The Android application is located in `android/`.
 
 ---
 
-## 9. Evaluation Results (Held-Out Test Set)
+## 10. Evaluation Results (Held-Out Test Set)
 
 Evaluated against `data/evaluation_notifications.csv` (126 samples with seed 99, completely held out from training):
 
@@ -270,16 +325,19 @@ Evaluated against `data/evaluation_notifications.csv` (126 samples with seed 99,
 
 ---
 
-## 10. Privacy & Security Model
+## 11. Privacy & Security Model
 
 - **No Remote AI Cloud**: All ML inferences occur on the local CPU; no credentials or API keys required.
 - **Redaction by Default**: Emails, phone numbers, account digits, URLs, and OTPs are automatically masked.
 - **Privacy-Preserving Logs**: Application logs never include raw notification text.
+- **Quiet Hours & Deferrals**: Sensitive or off-hours notifications can be scheduled to defer alert interrupts.
+- **Package Exclusion Control**: Full device-side and server-side exclusion prevent sensitive apps from being tracked.
+- **Local Shopping Intelligence**: Price histories, coupons, and deals remain 100% on localhost with zero tracking.
 - **Complete Data Purge**: Single-click purge permanently wipes all stored notifications, actions, and feedback.
 
 ---
 
-## 11. Known Limitations & Future Improvements
+## 12. Known Limitations & Future Improvements
 
 1. **Synthetic Training Data**: The ML model is trained on diverse synthetic notification templates. In production, fine-tuning on consented, user-labeled historical notifications will improve domain edge-case recall.
 2. **Ambiguous Deadlines**: Complex date expressions without reference dates (e.g., "by next week") are marked as `unresolved` by design to prevent false calendar entries.
@@ -290,6 +348,6 @@ Evaluated against `data/evaluation_notifications.csv` (126 samples with seed 99,
 
 ---
 
-## 12. License
+## 13. License
 
 This project is licensed under the MIT License.

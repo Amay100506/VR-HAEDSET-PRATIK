@@ -89,6 +89,8 @@ class NotificationCaptureService : NotificationListenerService() {
             eventType = "removed"
         )
 
+        // Save locally to JSON buffer
+        JsonExporter.saveEvent(applicationContext, event)
         Log.d(TAG, "Recorded notification removal event for $packageName")
     }
 }

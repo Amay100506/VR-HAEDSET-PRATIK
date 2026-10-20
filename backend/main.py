@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from backend.api.routes import router
+from backend.api.shopping_routes import router as shopping_router
 from backend.database.connection import init_db
 from backend.utils.configuration import settings
 from backend.utils.logging_config import logger
@@ -53,6 +54,8 @@ async def serve_mobile_pwa():
 
 app.include_router(router, prefix="/api/v1")
 app.include_router(router)  # Also mount at root for /health, /notifications etc.
+app.include_router(shopping_router, prefix="/api/v1")
+app.include_router(shopping_router)
 
 
 if __name__ == "__main__":

@@ -279,14 +279,16 @@ def get_analytics_priorities():
 def get_application_settings():
     """Returns current non-sensitive application settings."""
     stored = repo.get_all_settings()
-    # Merge with default settings
-    return {
+    # Merge defaults with stored settings
+    merged = {
         "confidence_threshold": stored.get("confidence_threshold", str(settings.confidence_threshold)),
         "near_dup_threshold": stored.get("near_dup_threshold", str(settings.near_dup_threshold)),
         "timezone": stored.get("timezone", settings.timezone),
         "redaction_enabled": stored.get("redaction_enabled", str(settings.redaction_enabled)),
         "recency_tau_hours": stored.get("recency_tau_hours", str(settings.recency_tau_hours)),
     }
+    merged.update(stored)
+    return merged
 
 
 @router.patch("/settings")
@@ -295,6 +297,13 @@ def update_application_settings(req: SettingsUpdate):
     for k, v in req.settings.items():
         repo.set_setting(k, str(v))
     return {"status": "settings_updated", "updated": list(req.settings.keys())}
+
+
+@router.post("/retention/cleanup")
+def cleanup_retention():
+    """Removes notifications that have exceeded their retention expiration timestamp."""
+    deleted = repo.cleanup_expired_retention()
+    return {"status": "cleanup_completed", "deleted_count": deleted}
 
 
 @router.post("/privacy/purge", response_model=PurgeResponse)
